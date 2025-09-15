@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Service</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; color: #333; line-height: 1.4; padding: 15px; font-size: 13px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 15px; border-radius: 4px; }
+        h1 { text-align: center; margin: 0 0 15px 0; color: #9400D3; font-size: 18px; }
+        
+        .search-box { display: flex; gap: 8px; margin-bottom: 15px; }
+        #orderId { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; }
+        #searchBtn { padding: 8px 16px; background: #9400D3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
+        #searchBtn:hover { background: #9400D3; }
+        #searchBtn:disabled { background: #a0aec0; cursor: not-allowed; }
+        
+        .status { text-align: center; padding: 8px; margin: 8px 0; border-radius: 3px; font-size: 12px; }
+        #loading { background: #e9d8fd; color: #9400D3; display: none; }
+        #error { background: #fed7d7; color: #c53030; display: none; }
+        #empty { background: #f7fafc; color: #718096; display: none; }
+        
+        .result-section { display: none; margin-top: 15px; }
+        .section { margin-bottom: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 3px; }
+        .section-title { font-weight: bold; margin-bottom: 8px; color: #9400D3; font-size: 14px; }
+        
+        .fields-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+        .field { margin-bottom: 6px; }
+        .field-label { font-size: 11px; color: #718096; margin-bottom: 2px; }
+        .field-value { padding: 6px; background: #f8f9fa; border-radius: 2px; min-height: 26px; word-break: break-word; font-size: 12px; }
+        
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        .items-table th { background: #e9d8fd; padding: 6px; text-align: left; }
+        .items-table td { padding: 6px; border-bottom: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Search order</h1>
+        
+        <div class="search-box">
+            <input type="text" id="orderId" placeholder="Inter order ID" autocomplete="off">
+            <button id="searchBtn" onclick="getOrder()">Search</button>
+        </div>
+
+        <div id="loading" class="status">Loading...</div>
+        <div id="error" class="status"></div>
+        <div id="empty" class="status">Order not found</div>
+
+        <div id="resultSection" class="result-section"></div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const el = {
+            orderId: document.getElementById('orderId'),
+            searchBtn: document.getElementById('searchBtn'),
+            loading: document.getElementById('loading'),
+            error: document.getElementById('error'),
+            empty: document.getElementById('empty'),
+            result: document.getElementById('resultSection')
+        };
+
+        function show(e) { e.style.display = 'block'; }
+        function hide(e) { e.style.display = 'none'; }
+        function hideAll() { [el.loading, el.error, el.empty, el.result].forEach(hide); }
+
+        function createField(label, value) {
+            return `<div class="field">
+                <div class="field-label">${label}</div>
+                <div class="field-value">${value !== null && value !== undefined ? value : '—'}</div>
+            </div>`;
+        }
+
+        async function getOrder() {
+            const orderId = el.orderId.value.trim();
+            if (!orderId) {
+                el.error.textContent = 'Inter order ID';
+                show(el.error);
+                return;
+            }
+            
+            hideAll();
+            show(el.loading);
+            el.searchBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/order/${orderId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        show(el.empty);
+                    } else {
+                        throw new Error(`Error: ${response.status}`);
+                    }
+                    return;
+                }
+                
+                const order = await response.json();
+                renderOrder(order);
+                
+            } catch (err) {
+                el.error.textContent = err.message;
+                show(el.error);
+            } finally {
+                hide(el.loading);
+                el.searchBtn.disabled = false;
+            }
+        }
+
+        function renderOrder(order) {
+            const sections = [
+                {
+                    title: 'Main info',
+                    fields: [
+                        ['Order UID', order.order_uid],
+                        ['Track Number', order.track_number],
+                        ['Entry', order.entry],
+                        ['Locale', order.locale],
+                        ['Internal Signature', order.internal_signature],
+                        ['Customer ID', order.customer_id],
+                        ['Delivery Service', order.delivery_service],
+                        ['Shardkey', order.shardkey],
+                        ['SM ID', order.sm_id],
+                        ['Date Created', order.date_created],
+                        ['OOF Shard', order.oof_shard]
+                    ]
+                },
+                {
+                    title: 'Delivery',
+                    fields: order.delivery ? [
+                        ['Name', order.delivery.name],
+                        ['Phone', order.delivery.phone],
+                        ['Zip', order.delivery.zip],
+                        ['City', order.delivery.city],
+                        ['Address', order.delivery.address],
+                        ['Region', order.delivery.region],
+                        ['Email', order.delivery.email]
+                    ] : []
+                },
+                {
+                    title: 'Payment',
+                    fields: order.payment ? [
+                        ['Transaction', order.payment.transaction],
+                        ['Request ID', order.payment.request_id],
+                        ['Currency', order.payment.currency],
+                        ['Provider', order.payment.provider],
+                        ['Amount', order.payment.amount],
+                        ['Payment DT', order.payment.payment_dt],
+                        ['Bank', order.payment.bank],
+                        ['Delivery Cost', order.payment.delivery_cost],
+                        ['Goods Total', order.payment.goods_total],
+                        ['Custom Fee', order.payment.custom_fee]
+                    ] : []
+                }
+            ];
+
+            let html = '';
+            
+            sections.forEach(section => {
+                if (section.fields.length > 0) {
+                    html += `<div class="section">
+                        <div class="section-title">${section.title}</div>
+                        <div class="fields-grid">${
+                            section.fields.map(([label, value]) => createField(label, value)).join('')
+                        }</div>
+                    </div>`;
+                }
+            });
+
+            if (order.items && order.items.length > 0) {
+                html += `<div class="section">
+                    <div class="section-title">Items</div>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Brand</th>
+                                <th>Price</th>
+                                <th>Sale</th>
+                                <th>Total Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>${
+                            order.items.map(item => `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td>${item.brand}</td>
+                                    <td>${item.price}</td>
+                                    <td>${item.sale}</td>
+                                    <td>${item.total_price}</td>
+                                    <td>${item.status}</td>
+                                </tr>`
+                            ).join('')
+                        }</tbody>
+                    </table>
+                </div>`;
+            }
+
+            el.result.innerHTML = html;
+            show(el.result);
+        }
+
+        el.orderId.addEventListener('keypress', e => e.key === 'Enter' && getOrder());
+        el.orderId.addEventListener('input', () => {
+            hide(el.error);
+            hide(el.empty);
+        });
+    </script>
+</body>
+</html>
