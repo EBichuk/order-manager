@@ -1,13 +1,18 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25.1-alpine AS builder
 
-WORKDIR /app/producer
+WORKDIR /build
 
-# depen
-COPY /producer/go.mod /producer/go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
-# build
-COPY producer/ ./
-RUN go build -o app ./main.go
+COPY main.go .
 
-CMD ["./app"]
+RUN go build -o producer main.go
+
+FROM alpine:3.22
+
+WORKDIR /app
+
+COPY --from=builder /build/producer .
+
+CMD ["./producer"]
