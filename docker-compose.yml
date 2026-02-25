@@ -2,7 +2,6 @@ services:
   postgres:
     image: postgres
     container_name: order-manager
-    hostname: localhost
     ports:
       - 5432:5432
     environment:
@@ -14,6 +13,48 @@ services:
       interval: 7s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
+      
+  migrator:
+    container_name: migrator
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: goose
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "host=postgres user=${POSTGRES_USER} password=${POSTGRES_PASSWORD} dbname=${POSTGRES_NAME} port=5432 sslmode=disable"
+    depends_on:
+        postgres:
+          condition: service_healthy
+    command: ["up"]
+    networks:
+      - backend
+
+  app:
+    container_name: order-app
+    image: golang:1.25-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    ports:
+      - "8081:8081"
+    environment:
+      POSTGRES_NAME: ${POSTGRES_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_SSL: ${POSTGRES_SSL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+    depends_on:
+        migrator:
+          condition: service_completed_successfully
+    networks:
+      - backend
 
   controller-1:
     image: apache/kafka:latest
@@ -26,6 +67,8 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - backend
 
   controller-2:
     image: apache/kafka:latest
@@ -38,7 +81,8 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
+    networks:
+      - backend
 
   controller-3:
     image: apache/kafka:latest
@@ -51,6 +95,8 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - backend
 
   broker-1:
     image: apache/kafka:latest
@@ -71,6 +117,8 @@ services:
       - controller-1
       - controller-2
       - controller-3
+    networks:
+      - backend
 
   broker-2:
     image: apache/kafka:latest
@@ -91,6 +139,8 @@ services:
       - controller-1
       - controller-2
       - controller-3
+    networks:
+      - backend
 
   broker-3:
     image: apache/kafka:latest
@@ -107,11 +157,14 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     depends_on:
       - controller-1
       - controller-2
       - controller-3
-      
+    networks:
+      - backend  
+
   kafka-ui:
       container_name: kafka-ui
       image: provectuslabs/kafka-ui:latest
@@ -120,15 +173,23 @@ services:
       environment:
         KAFKA_CLUSTERS_0_NAME: "local"
         KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "broker-1:19092,broker-2:19092,broker-3:19092"
+      networks:
+        - backend
 
   producer:
     container_name: producer
-    image: golang:1.23-alpine
     build:
-      dockerfile: producer/Dockerfile
+      context: ./producer
+      dockerfile: Dockerfile
     depends_on:
-        postgres:
-          condition: service_healthy
+        migrator:
+          condition: service_completed_successfully
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge  
 
 volumes:
   db-data:
