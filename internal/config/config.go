@@ -1,6 +1,10 @@
 package config
 
-import "github.com/ilyakaznacheev/cleanenv"
+import (
+	"fmt"
+
+	"github.com/ilyakaznacheev/cleanenv"
+)
 
 type Config struct {
 	Cache
@@ -14,8 +18,8 @@ type Cache struct {
 }
 
 type Kafka struct {
-	Topic   string `env:"KAFKA_TOPIC"`
-	Brokers string `env:"KAFKA_BROKERS"`
+	Topic   string `env:"KAFKA_TOPIC" env-default:"order"`
+	Brokers string `env:"KAFKA_BROKERS" env-default:"broker-1:19092,broker-2:19092,broker-3:19092"`
 }
 
 type Db struct {
@@ -28,7 +32,7 @@ type Db struct {
 }
 
 type HttpServer struct {
-	Addr string `env:"HTTP_ADDRESS"`
+	Addr string `env:"HTTP_ADDRESS" env-default:"localhost:8081"`
 }
 
 func LoadConfig() (Config, error) {
@@ -36,8 +40,10 @@ func LoadConfig() (Config, error) {
 
 	err := cleanenv.ReadConfig(".env", &cfg)
 	if err != nil {
-		return cfg, err
+		if err := cleanenv.ReadEnv(&cfg); err != nil {
+			return cfg, fmt.Errorf("failed to read env: %w", err)
+		}
+		return cfg, nil
 	}
-
 	return cfg, nil
 }
