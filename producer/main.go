@@ -16,10 +16,10 @@ type Producer struct {
 }
 
 func NewProducer() *Producer {
-	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers: []string{"localhost:29092", "localhost:39092", "localhost:19092"},
-		Topic:   "order",
-	})
+	w := &kafka.Writer{
+		Addr:  kafka.TCP([]string{"broker-1:19092", "broker-2:19092", "broker-3:19092"}...),
+		Topic: "order",
+	}
 
 	return &Producer{
 		producer: w,
