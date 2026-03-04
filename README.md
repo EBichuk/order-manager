@@ -8,6 +8,7 @@
 - HTTP-сервер для получения информации о заказах
 - Веб-интерфейс для поиска заказов
 
+Видео демонстрация - https://disk.yandex.ru/i/vb2yPEFaCGqR9w
 ## Технологии
 - Go 1.23
 - PostgreSQL - база данных
@@ -81,3 +82,10 @@ docker compose up -d
 - Сервис на порту 8081
 - Kafka с тремя контролерами и тремя брокерами + Kafka ui на порту 8082
 - Сервис producer, который отправляет в kafka 20 заказов
+
+## API
+- GET /order/{order_uid}
+получение данных о заказе по order_uid
+```bash
+curl "http://localhost:8081/order/b563feb7b2b84b6test"
+```
